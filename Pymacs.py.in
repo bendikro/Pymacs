@@ -37,7 +37,17 @@ version = '@VERSION@'
 import os
 import sys
 
-if PYTHON3:
+
+def io_errors_with_signals():
+    return os.getenv('IO_ERRORS_WITH_SIGNALS', default=True)
+
+
+def is_python3():
+    import sys
+    return sys.version_info[0] == 3
+
+
+if is_python3():
     import collections
 
     def callable(value):
@@ -106,7 +116,7 @@ Arguments are added to the search path for Python modules.
         # Inhibit signals.  The Interrupt signal is temporary enabled, however,
         # while executing any Python code received from the Lisp side.
         if signal is not None:
-            if IO_ERRORS_WITH_SIGNALS:
+            if io_errors_with_signals():
                 # See the comment for IO_ERRORS_WITH_SIGNALS in ppppconfig.py.
                 self.original_handler = signal.signal(
                     signal.SIGINT, self.interrupt_handler)
@@ -118,11 +128,11 @@ Arguments are added to the search path for Python modules.
                     else:
                         try:
                             signal.signal(counter, self.generic_handler)
-                        except RuntimeError:
+                        except (RuntimeError, OSError):
                             pass
         self.inhibit_quit = True
 
-        if not PYTHON3:
+        if not is_python3():
             # Re-open standard input and output in binary mode.
             sys.stdin = os.fdopen(sys.stdin.fileno(), 'rb')
             sys.stdout = os.fdopen(sys.stdout.fileno(), 'wb')
@@ -176,7 +186,7 @@ class Protocol:
     def __init__(self):
         self.freed = []
 
-    if PYTHON3:
+    if is_python3():
 
         def loop(self):
             # The server loop repeatedly receives a request from Emacs and
@@ -296,7 +306,7 @@ class Protocol:
                         raise
                     action = 'raise'
                     value = '*Interrupted*'
-                except ProtocolError, exception:
+                except ProtocolError as exception:
                     sys.exit("Protocol error: %s\n" % exception)
                 except:
                     import traceback
@@ -313,7 +323,7 @@ class Protocol:
                     self.send(action, ''.join(fragments))
             return value
 
-    if PYTHON3:
+    if is_python3():
 
         def receive(self):
             # Receive a Python expression from Emacs, return (ACTION, TEXT).
@@ -362,7 +372,7 @@ class Protocol:
                 handle.close()
             return text.split(None, 1)
 
-    if PYTHON3:
+    if is_python3():
 
         def send(self, action, text):
             # Send ACTION and its TEXT argument to Emacs.
@@ -542,7 +552,7 @@ class Let:
     def __del__(self):
         self.pops()
 
-    if PYTHON3:
+    if is_python3():
         def __bool__(self):
             # So stylistic `if let:' executes faster.
             return True
@@ -817,9 +827,10 @@ class Lisp_Interface:
             symbol = self._cache[name] = Symbol(name)
         symbol.set(value)
 
+
 lisp = Lisp_Interface()
 
-if PYTHON3:
+if is_python3():
 
     print_lisp_quoted_specials = {
         ord('"'): '\\"', ord('\\'): '\\\\', ord('\b'): '\\b',
